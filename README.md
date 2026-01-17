@@ -77,6 +77,7 @@ You can also configure the email server using environment variables, which is pa
 | `MCP_EMAIL_SERVER_SMTP_PORT`                  | SMTP server port                                 | `465`         | No       |
 | `MCP_EMAIL_SERVER_SMTP_SSL`                   | Enable SMTP SSL                                  | `true`        | No       |
 | `MCP_EMAIL_SERVER_SMTP_START_SSL`             | Enable STARTTLS                                  | `false`       | No       |
+| `MCP_EMAIL_SERVER_SMTP_VERIFY_SSL`            | Verify SSL certificates (disable for self-signed)| `true`        | No       |
 | `MCP_EMAIL_SERVER_ENABLE_ATTACHMENT_DOWNLOAD` | Enable attachment download                       | `false`       | No       |
 | `MCP_EMAIL_SERVER_SAVE_TO_SENT`               | Save sent emails to IMAP Sent folder             | `true`        | No       |
 | `MCP_EMAIL_SERVER_SENT_FOLDER_NAME`           | Custom Sent folder name (auto-detect if not set) | -             | No       |
@@ -149,6 +150,35 @@ sent_folder_name = "INBOX.Sent"
 ```
 
 **To disable saving to Sent folder**, set `MCP_EMAIL_SERVER_SAVE_TO_SENT=false` or `save_to_sent = false` in your TOML config.
+
+### Self-Signed Certificates (e.g., ProtonMail Bridge)
+
+If you're using a local mail server with self-signed certificates (like ProtonMail Bridge), you'll need to disable SSL certificate verification:
+
+```json
+{
+  "mcpServers": {
+    "zerolib-email": {
+      "command": "uvx",
+      "args": ["mcp-email-server@latest", "stdio"],
+      "env": {
+        "MCP_EMAIL_SERVER_SMTP_VERIFY_SSL": "false"
+      }
+    }
+  }
+}
+```
+
+Or in TOML configuration:
+
+```toml
+[[emails]]
+account_name = "protonmail"
+# ... other settings ...
+
+[emails.outgoing]
+verify_ssl = false
+```
 
 For separate IMAP/SMTP credentials, you can also use:
 
