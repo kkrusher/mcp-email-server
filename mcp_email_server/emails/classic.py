@@ -143,6 +143,7 @@ class EmailClient:
 
         # Get body content
         body = ""
+        html_body = ""
         attachments = []
 
         if email_message.is_multipart():
@@ -155,7 +156,7 @@ class EmailClient:
                     filename = part.get_filename()
                     if filename:
                         attachments.append(filename)
-                # Handle text parts
+                # Handle text parts - prefer text/plain
                 elif content_type == "text/plain":
                     body_part = part.get_payload(decode=True)
                     if body_part:
@@ -164,15 +165,32 @@ class EmailClient:
                             body += body_part.decode(charset)
                         except UnicodeDecodeError:
                             body += body_part.decode("utf-8", errors="replace")
+                # Fallback to text/html if no text/plain is available
+                elif content_type == "text/html" and not html_body:
+                    body_part = part.get_payload(decode=True)
+                    if body_part:
+                        charset = part.get_content_charset("utf-8")
+                        try:
+                            html_body = body_part.decode(charset)
+                        except UnicodeDecodeError:
+                            html_body = body_part.decode("utf-8", errors="replace")
         else:
-            # Handle plain text emails
+            content_type = email_message.get_content_type()
             payload = email_message.get_payload(decode=True)
             if payload:
                 charset = email_message.get_content_charset("utf-8")
                 try:
-                    body = payload.decode(charset)
+                    decoded = payload.decode(charset)
                 except UnicodeDecodeError:
-                    body = payload.decode("utf-8", errors="replace")
+                    decoded = payload.decode("utf-8", errors="replace")
+                if content_type == "text/html":
+                    html_body = decoded
+                else:
+                    body = decoded
+
+        # If no plain text body found, convert HTML to plain text
+        if not body and html_body:
+            body = self._html_to_text(html_body)
         # TODO: Allow retrieving full email body
         if body and len(body) > 20000:
             body = body[:20000] + "...[TRUNCATED]"
@@ -186,6 +204,28 @@ class EmailClient:
             "date": date,
             "attachments": attachments,
         }
+
+    @staticmethod
+    def _html_to_text(html: str) -> str:
+        """Convert HTML to plain text by stripping tags and decoding entities."""
+        import re
+
+        # Replace block-level tags with newlines
+        text = re.sub(r"<br\s*/?>|</?p[^>]*>|</?div[^>]*>|</?tr[^>]*>", "\n", html)
+        # Remove all remaining HTML tags
+        text = re.sub(r"<[^>]+>", "", text)
+        # Decode common HTML entities
+        text = text.replace("&nbsp;", " ")
+        text = text.replace("&gt;", ">")
+        text = text.replace("&lt;", "<")
+        text = text.replace("&amp;", "&")
+        text = text.replace("&quot;", '"')
+        text = text.replace("&#39;", "'")
+        # Clean up whitespace
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n[ \t]+", "\n", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
 
     @staticmethod
     def _build_search_criteria(
